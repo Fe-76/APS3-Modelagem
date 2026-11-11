@@ -1,0 +1,33 @@
+stateDiagram-v2
+    state "Aprovada" as Aprovada
+    state "Negada" as Negada
+
+    [*] --> Pendente : solicitar [estado da máquina ∉ {INDISPONIVEL, EM_MANUTENCAO}]
+
+    state Pendente {
+        state "AguardandoAprovacao" as AguardandoAprovacao
+        state "EmFila" as EmFila
+        state temConflito <<choice>>
+
+        [*] --> temConflito
+        temConflito --> AguardandoAprovacao : [conflito = false]
+        temConflito --> EmFila : [conflito = true] / enfileirar(reservaId)
+        EmFila --> AguardandoAprovacao : reordenar [posicao = 1]
+
+        AguardandoAprovacao : entry / notificar(administrador, novaSolicitacao)
+        EmFila : entry / consultarPosicao(reservaId)
+    }
+
+    Pendente --> Aprovada : aprovar [posicao = 1] / atualizar(maquina RESERVADA)
+    Pendente --> Negada : negar [justificativa ≠ vazia] / reordenar(maquinaId, novaOrdem)
+    Pendente --> Cancelada : cancelar / reordenar(maquinaId, novaOrdem)
+
+    Aprovada : entry / notificar(solicitante, reservaAprovada)
+    Aprovada --> Cancelada : cancelar [antes do início] / atualizar(maquina DISPONIVEL), reordenar(maquinaId, novaOrdem)
+    Aprovada --> Concluida : when(horário de fim chegou) / atualizar(maquina DISPONIVEL)
+
+    Negada : entry / notificar(solicitante, justificativa)
+
+    Concluida --> [*]
+    Negada --> [*]
+    Cancelada --> [*]
