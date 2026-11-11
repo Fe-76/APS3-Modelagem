@@ -1,0 +1,77 @@
+sequenceDiagram
+    autonumber
+    actor Sol as Solicitante
+    actor Adm as Administrador/Técnico
+    participant Login as :LoginService
+    participant Res as :ReservaService
+    participant Maq as :MaquinaService
+    participant Fila as :FilaPrioridadeService
+    participant Not as :NotificacaoService
+
+    Sol->>Login: autenticar(credenciais)
+    Login-->>Sol: PerfilDTO (SOLICITANTE)
+
+    Sol->>Maq: consultarDisponibilidade(periodo)
+    Maq-->>Sol: HorarioDTO[] (RF01)
+
+    Sol->>Res: solicitar(maquinaId, periodo)
+    Res->>Login: verificarPermissao(perfil, "solicitar_reserva")
+    Login-->>Res: true
+    Res->>Maq: obterEstado(maquinaId)
+    Maq-->>Res: EstadoMaquina (regras 1 e 7)
+
+    alt estado ∈ {INDISPONIVEL, EM_MANUTENCAO}
+        Res-->>Sol: ErroDTO("Reserva não permitida")
+    else estado ∉ {INDISPONIVEL, EM_MANUTENCAO}
+        Res->>Fila: identificarConflito(maquinaId, periodo)
+        Fila-->>Res: boolean (RF03)
+
+        alt conflito = true
+            Res->>Fila: enfileirar(reservaId)
+            Fila-->>Res: posicao (RF04)
+            Res-->>Sol: ReservaDTO {status: EM_FILA, posicao}
+            Sol->>Fila: consultarPosicao(reservaId)
+            Fila-->>Sol: posicao (RF05)
+        else conflito = false
+            Res-->>Sol: ReservaDTO {status: AGUARDANDO_APROVACAO}
+        end
+
+        Res-)Not: notificar(administrador, "Nova solicitação")
+        Not--)Adm: aviso de nova solicitação
+
+        opt caso excepcional
+            Adm->>Fila: reordenar(maquinaId, novaOrdem)
+            Note right of Fila: RF14
+        end
+
+        alt decisão = aprovar
+            Adm->>Res: aprovar(reservaId)
+            Res->>Fila: consultarPosicao(reservaId)
+            Fila-->>Res: posicao
+            alt posicao = 1
+                Res->>Maq: atualizar(maquina {estado: RESERVADA})
+                Res-->>Adm: ok — reserva aprovada (RF06)
+                Res-)Not: notificar(solicitante, "Reserva aprovada")
+                Not--)Sol: notificação de aprovação (RF25)
+            else posicao > 1
+                Res-->>Adm: ErroDTO("Reserva ainda está na fila")
+            end
+        else decisão = negar
+            Adm->>Res: negar(reservaId, justificativa)
+            Res->>Fila: reordenar(maquinaId, novaOrdem)
+            Res-->>Adm: ok — reserva negada (RF07, RF08)
+            Res-)Not: notificar(solicitante, "Reserva negada" + justificativa)
+            Not--)Sol: notificação de negação (RF25)
+        end
+
+        opt solicitante cancela antes do início (reserva pendente ou aprovada)
+            Sol->>Res: cancelar(reservaId)
+            opt reserva estava aprovada
+                Res->>Maq: atualizar(maquina {estado: DISPONIVEL})
+            end
+            Res->>Fila: reordenar(maquinaId, novaOrdem)
+            Res-->>Sol: ok — reserva cancelada (RF09)
+            Res-)Not: notificar(administrador, "Reserva cancelada")
+            Not--)Adm: aviso de cancelamento
+        end
+    end
