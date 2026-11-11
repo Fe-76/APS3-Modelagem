@@ -1,0 +1,67 @@
+flowchart TB
+    subgraph SOL["Solicitante"]
+        INI(( )):::inicio
+        A1["Autenticar"]
+        A2["Consultar disponibilidade (RF01)"]
+        A3["Solicitar reserva (RF02)"]
+        A4["Consultar posição na fila (RF05)"]
+        A5["Receber aprovação"]
+        D5{ }
+        A6["Cancelar reserva (RF09)"]
+        A7["Receber negação e justificativa"]
+        FIM1((( ))):::fim
+        FIM2((( ))):::fim
+        FIM3((( ))):::fim
+        FIM4((( ))):::fim
+    end
+
+    subgraph SIS["Sistema FabLab"]
+        D1{ }
+        B1["Informar reserva não permitida"]
+        D2{ }
+        B2["Criar/atualizar fila de prioridade (RF04)"]
+        M1{ }
+        B3["Encaminhar para aprovação"]
+        FK1["fork"]:::barra
+        B4["Atualizar estado da máquina para reservada"]
+        JN1["join"]:::barra
+        B5["Registrar justificativa (RF08)"]
+        B7["Atualizar fila de prioridade"]
+        B6["Liberar horário e atualizar fila"]
+    end
+
+    subgraph ADM["Administrador/Técnico"]
+        D3{ }
+        C1["Reordenar fila (RF14)"]
+        M2{ }
+        D4{ }
+        C2["Aprovar reserva (RF06)"]
+        C3["Negar reserva (RF07)"]
+    end
+
+    subgraph NOT["Serviço de Notificação"]
+        E1["Avisar administrador"]
+        E2["Notificar aprovação (RF25)"]
+        E3["Notificar negação com justificativa (RF25)"]
+    end
+
+    INI --> A1 --> A2 --> A3 --> D1
+    D1 -->|"[estado ∈ {INDISPONIVEL, EM_MANUTENCAO}]"| B1 --> FIM1
+    D1 -->|"[estado ∉ {INDISPONIVEL, EM_MANUTENCAO}]"| D2
+    D2 -->|"[conflito = true]"| B2 --> A4 --> M1
+    D2 -->|"[conflito = false]"| M1
+    M1 --> B3 --> E1 --> D3
+    D3 -->|"[caso excepcional = true]"| C1 --> M2
+    D3 -->|"[caso excepcional = false]"| M2
+    M2 --> D4
+    D4 -->|"[decisão = aprovar]"| C2 --> FK1
+    FK1 --> B4 --> JN1
+    FK1 --> E2 --> JN1
+    JN1 --> A5 --> D5
+    D5 -->|"[cancelar = false]"| FIM2
+    D5 -->|"[cancelar = true]"| A6 --> B6 --> FIM3
+    D4 -->|"[decisão = negar]"| C3 --> B5 --> B7 --> E3 --> A7 --> FIM4
+
+    classDef inicio fill:#111,stroke:#111
+    classDef fim fill:#111,stroke:#111,stroke-width:3px
+    classDef barra fill:#111,stroke:#111,color:#fff,font-size:10px
