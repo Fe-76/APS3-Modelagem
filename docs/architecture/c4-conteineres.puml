@@ -1,0 +1,37 @@
+@startuml C4_Conteineres_FabLab
+' C4 Nível 2 — Visão de Contêineres do FabLab Manager
+' Fonte do C4 em C4-PlantUML. O workspace.dsl inclui este arquivo.
+!include <C4/C4_Container>
+
+title FabLab Manager — Visão de Contêineres (C4 Nível 2)
+
+Person(solicitante, "Solicitante", "Aluno ou professor que reserva máquinas")
+Person(admin, "Administrador/Técnico", "Aprova ou nega reservas e cuida das máquinas")
+
+System_Boundary(fablab, "FabLab Manager") {
+    Container(web, "Portal Web FabLab", "React, TypeScript, Vite", "Telas de disponibilidade, reservas, fila, máquinas e estoque")
+    Container(api, "API FabLab", "Python, FastAPI", "Reservas, fila de prioridade, máquinas, estoque, compras e controle de acesso")
+    ContainerDb(db, "Banco de Dados FabLab", "PostgreSQL 16", "Reservas, máquinas, fila e insumos")
+    ContainerQueue(fila, "Fila de Notificações", "RabbitMQ", "Guarda os eventos de notificação até serem entregues")
+}
+
+System_Ext(login, "Sistema de Login", "Autenticação institucional")
+System_Ext(notificacao, "Serviço de Notificação", "Envia e-mails e avisos")
+System_Ext(financeiro, "Sistema Financeiro", "Aprova ou recusa compras")
+System_Ext(fornecedor, "Portal do Fornecedor", "Recebe pedidos e confirma entregas")
+
+Rel(solicitante, web, "Consulta horários e solicita reservas", "HTTPS")
+Rel(admin, web, "Aprova, nega e reordena a fila", "HTTPS")
+Rel(web, api, "Chama a API", "HTTPS / JSON (REST)")
+Rel(api, login, "Autentica usuários", "HTTPS / JWT")
+Rel(api, db, "Lê e grava dados", "SQL / TCP 5432")
+Rel(api, fila, "Publica eventos (assíncrono)", "AMQP")
+Rel(fila, notificacao, "Entrega eventos", "AMQP")
+Rel(api, financeiro, "Solicita aprovação de compra", "HTTPS / JSON")
+Rel(api, fornecedor, "Envia pedido de compra", "HTTPS / JSON")
+Rel(fornecedor, api, "Confirma entrega", "HTTPS / JSON")
+Rel(notificacao, solicitante, "Avisa sobre a reserva", "E-mail")
+Rel(notificacao, admin, "Avisa sobre nova solicitação", "E-mail")
+
+SHOW_LEGEND()
+@enduml
